@@ -1,41 +1,32 @@
-require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
-const { getPlaces } = require('./main/placeService');
-const { NotFoundError, ConflictError, BadRequestError, GoogleMapApiRequestError, errorHandler } = require('./middleware/error_handler');
-const {authenticateUser, authorizeUser } = require('./user/authentication');
+const placeRoutes = require('./routes/places');
+const userRoutes = require('./routes/user');
+const {errorHandler} = require('./middleware/error_handler');
+const {authenticateUser} = require('./user/authentication');
+
 const app = express();
-const port = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text());
-app.use('', authenticateUser);
 
-app.get('/places', authorizeUser('search'),async (req, res, next) => {
-    try {
-        const text = req.query.text;
-        if (!text) {
-            throw new BadRequestError('text query parameter is required');
-        }
-        const places = await getPlaces(text);
-        res.json(places);
-    } catch (error) {
-        next(error);
+app.use((req, res, next) => {
+    if (req.path.startsWith('/users')) {
+        // Skip authentication for user routes
+        return next();
     }
+    authenticateUser(req, res, next);
+});
+
+app.use('/places', placeRoutes);
+app.use('/users', userRoutes);
+
+app.use((req, res) => {
+    res.status(404).json({ error: 'Hi bro, this is a wrong address' });
 });
 
 app.use(errorHandler);
 
-async function initializeServer() {
-    try {
-        app.listen(port, () => {
-        console.log(`Server running on port ${port}`);
-        });
-    } catch (error) {
-        console.error('Failed to initialize server:', error);
-        process.exit(1);
-    }
-}
 
-initializeServer();
+module.exports = app;

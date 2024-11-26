@@ -1,14 +1,18 @@
+const { NotFoundError } = require('../middleware/error_handler');
+const {validateKey} = require('./loginService');
+
 async function authenticateUser(req, res, next) {
-    // const userId = req.header('X-User-ID');
-    // if (!userId) {
-    //     return res.status(401).json({ error:'User ID is required' });
-    // }
-    // const user = users.find(u => u.id === userId);
-    // if (!user) {
-    //     return res.status(403).json({ error:'User not authorized' });
-    // }
-    // req.user = user;
-    next();
+    try {
+        const user_key = req.header('X-User-Key');
+        if (!user_key) {
+            throw new NotFoundError('please provide a user key');
+        }
+        const user_id = await validateKey(user_key);
+        req.user_id = { user_id };
+        next();
+    } catch (error) {
+        next(error);
+    }
 }
 
 function authorizeUser(requiredPermission) {
