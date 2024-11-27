@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const placeRoutes = require('./routes/places');
 const userRoutes = require('./routes/user');
+const notificationRoutes = require('./routes/notification')
 const {errorHandler} = require('./middleware/error_handler');
 const {authenticateUser} = require('./user/authentication');
 
@@ -21,6 +22,7 @@ app.use((req, res, next) => {
 
 app.use('/places', placeRoutes);
 app.use('/users', userRoutes);
+app.use('/notification',notificationRoutes);
 
 app.use((req, res) => {
     res.status(404).json({ error: 'Hi bro, this is a wrong address' });
