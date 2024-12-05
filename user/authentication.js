@@ -8,7 +8,7 @@ async function authenticateUser(req, res, next) {
             throw new NotFoundError('please provide a user key');
         }
         const user_id = await validateKey(user_key);
-        req.user_id = { user_id };
+        req.user_id = user_id;
         next();
     } catch (error) {
         next(error);

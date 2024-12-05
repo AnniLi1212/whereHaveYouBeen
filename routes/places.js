@@ -4,7 +4,7 @@ const { getPlaces,getPlaceByID } = require('../main/placeService');
 const {BadRequestError} = require('../middleware/error_handler');
 const {authenticateUser, authorizeUser } = require('../user/authentication');
 
-router.get('/', authorizeUser('search'),async (req, res, next) => {
+router.get('/', authorizeUser(''),async (req, res, next) => {
     try {
         const text = req.query.text;
         const pageSize = parseInt(req.query.pageSize) || 10;
@@ -19,7 +19,7 @@ router.get('/', authorizeUser('search'),async (req, res, next) => {
     }
 });
 
-router.get('/:placeID', authorizeUser('search'), async (req, res, next) => {
+router.get('/:placeID', authorizeUser(''), async (req, res, next) => {
     try {
         const placeID = req.params.placeID;
         const place = await getPlaceByID(placeID);

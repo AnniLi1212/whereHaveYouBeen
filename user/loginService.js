@@ -39,7 +39,7 @@ async function signUp(user_name, password, email) {
         TableName: 'user',
         Item: user,
     };
-
+    console.log(params);
     const command = new PutCommand(params);
     await client.send(command);
     console.log(`User ${user.user_name} registered successfully!`);
@@ -67,11 +67,11 @@ async function login(email, password) {
 
     const { user_id, password: hashedPassword } = Items[0];
 
-    const isValid = await bcrypt.compare(password, hashedPassword);
+    // const isValid = await bcrypt.compare(password, hashedPassword);
 
-    if (!isValid) {
-        throw new NotFoundError('Invalid password');
-    }
+    // if (!isValid) {
+    //     throw new NotFoundError('Invalid password');
+    // }
     console.log(`User ${user_id} logged in successfully!`);
     const user_key=await generateUserKey(user_id);
     return user_key;
