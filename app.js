@@ -14,7 +14,7 @@ const app = express();
 // Middleware to handle CORS (Cross-Origin Resource Sharing)
 app.use(cors({
     origin: '*', // Allow requests from any origin
-    methods: ['GET', 'POST'], // Allowed methods
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allowed methods
     allowedHeaders: ['Content-Type', 'Authorization'], // Allowed headers
     credentials: true
 }));

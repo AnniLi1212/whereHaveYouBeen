@@ -3,7 +3,8 @@ const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { PutCommand, GetCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb'); 
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4, validate } = require('uuid'); 
-const { NotFoundError } = require('../middleware/error_handler');
+const { NotFoundError, ConflictError } = require('../middleware/error_handler');
+const { get } = require('../routes/places');
 
 const isLambda = !!process.env.AWS_EXECUTION_ENV;
 
@@ -19,7 +20,13 @@ const client = new DynamoDBClient({
           }),
 });
 
+console.log(`isLambda: ${isLambda}`);
+
 async function signUp(user_name, password, email) {
+    const Items=await getUserByEmail(email);
+    if (Items.length > 0) {
+        throw new ConflictError('User already exists');
+    }
     const user_id = uuidv4();
 
     const now = new Date().toISOString();
@@ -39,7 +46,7 @@ async function signUp(user_name, password, email) {
         TableName: 'user',
         Item: user,
     };
-    console.log(params);
+    console.log('signup'+ params);
     const command = new PutCommand(params);
     await client.send(command);
     console.log(`User ${user.user_name} registered successfully!`);
@@ -48,7 +55,7 @@ async function signUp(user_name, password, email) {
     return user_key;
 }
 
-async function login(email, password) {
+async function getUserByEmail(email) {
     const params = {
         TableName: 'user',
         IndexName: 'email-index',
@@ -57,21 +64,25 @@ async function login(email, password) {
             ':email': email,
         },
     };
-
     const command = new QueryCommand(params);
     const { Items } = await client.send(command);
-    console.log(Items);
-    if (!Items) {
+    return Items;
+}
+
+async function login(email, password) {
+    const Items = await getUserByEmail(email);
+    console.log('login'+ Items);
+    if (Items.length == 0) {
         throw new NotFoundError('User not found');
     }
 
     const { user_id, password: hashedPassword } = Items[0];
 
-    // const isValid = await bcrypt.compare(password, hashedPassword);
+    const isValid = await bcrypt.compare(password, hashedPassword);
 
-    // if (!isValid) {
-    //     throw new NotFoundError('Invalid password');
-    // }
+    if (!isValid) {
+        throw new NotFoundError('Invalid password');
+    }
     console.log(`User ${user_id} logged in successfully!`);
     const user_key=await generateUserKey(user_id);
     return user_key;
