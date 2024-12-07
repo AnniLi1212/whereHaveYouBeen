@@ -20,8 +20,6 @@ const client = new DynamoDBClient({
           }),
 });
 
-console.log(`isLambda: ${isLambda}`);
-
 async function signUp(user_name, password, email) {
     const Items=await getUserByEmail(email);
     if (Items.length > 0) {

@@ -19,47 +19,54 @@ const client = new DynamoDBClient({
           }),
 });
 // store report in db
-async function storeReport(userId, report){
-    const reportId = uuidv4();
+async function storeReport(user_id, report_data,startTime, endTime){
+    const report_id = uuidv4();
     const now = new Date().toISOString();
     
     const params = {
-        TableName: 'weekly_reports',
+        TableName: 'report',
         Item:{
-            report_id: reportId,
-            user_id: userId,
-            report_data: report,
-            created_at: now,
-            period_start: report.period.start,
-            period_end: report.period.end
+            report_id,
+            user_id,
+            report_data,
+            createTime: now,
+            startTime: startTime.toISOString(),
+            endTime: endTime.toISOString(),
         }
     };
-
+    console.log(params)
     const command = new PutCommand(params);
     await client.send(command);
-    return reportId;
+    console.log(`Stored report for user ${user_id} with ID ${report_id}`);
 }
 
 // generate report
-async function generateWeeklyReport(userId){
-    const endDate = new Date();
-    const startDate = new Date(endDate);
-    startDate.setDate(endDate.getDate() - 7);
-
-    const visits = await getWeeklyVisits(userId, startDate.toISOString(), endDate.toISOString());
+// report_type: 1 for normal
+// if startTime == new Date(null), means first time report
+async function generateReport(report_type, user_id, startTime, endTime){
     
-    const report = {
-        totalPlaces: visits.length,
-        categories: await getCategorySummary(visits),
-        favoratePlaces: getFavoritePlaces(visits),
-        period: {
-            start: startDate,
-            end: endDate
-        }
-    };
-    const reportId = await storeReport(userId, report);
-    return { ...report, reportId };
+    const report_data = "report_data_for_test";
+    await storeReport(user_id, report_data, startTime, endTime);
+
+    // const endDate = new Date();
+    // const startDate = new Date(endDate);
+    // startDate.setDate(endDate.getDate() - 7);
+
+    // const visits = await getWeeklyVisits(userId, startDate.toISOString(), endDate.toISOString());
+    
+    // const report = {
+    //     totalPlaces: visits.length,
+    //     categories: await getCategorySummary(visits),
+    //     favoratePlaces: getFavoritePlaces(visits),
+    //     period: {
+    //         start: startDate,
+    //         end: endDate
+    //     }
+    // };
+    // const reportId = await storeReport(userId, report);
+    // return { ...report, reportId };
 }
+
 // get visits last week
 // TODO: match with historyService.js
 async function getWeeklyVisits(userId, startDate, endDate){
@@ -99,39 +106,37 @@ function getFavoritePlaces(visits){
             rating: visit.rating
         }));
 }
-// get user reports from db, newest first
-async function getUserReports(userId){
-    const params = {
-        TableName: 'weekly_reports',
-        KeyConditionExpression: 'user_id = :userId',
-        ExpressionAttributeValues: {
-            ':userId': userId
-        },
-        ScanIndexForward: false
-    };
 
-    const command = new QueryCommand(params);
-    const {Items} = await client.send(command);
-    return Items || [];
-}
-
-// get a specific report
-async function getReport(reportId, userId){
-    const params = {
-        TableName: 'weekly_reports',
-        Key: {
-            report_id: reportId,
-            user_id: userId
-        }
-    };
-
-    const command = new GetCommand(params);
-    const {Item} = await client.send(command);
-    return Item;
+function generateEmailHtml(report, reportId){
+    const reportUrl = `${process.env.APP_URL}/reports/${reportId}`;
+    return `
+        <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2>Your Weekly Travel Summary</h2>
+                <p>Here's what you've been up to this week!</p>
+                
+                <h3>Places Visited</h3>
+                <p>You visited ${report.totalPlaces} places this week!</p>
+                
+                <h3>Categories</h3>
+                <ul>
+                    ${report.categories.map(cat => 
+                        `<li>${cat.name}: ${cat.count} visits</li>`
+                    ).join('')}
+                </ul>
+                
+                <h3>Your Top Rated Places</h3>
+                <ul>
+                    ${report.favoratePlaces.map(place => 
+                        `<li>${place.name} - Rating: ${place.rating}/5</li>`
+                    ).join('')}
+                </ul>
+                <p>View your full report here: <a href="${reportUrl}">Click here</a></p>
+            </body>
+        </html>
+    `;
 }
 
 module.exports = {
-    generateWeeklyReport,
-    getUserReports,
-    getReport
+    generateReport
 };

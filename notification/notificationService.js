@@ -1,9 +1,9 @@
 // create nofitication, store in db
 // TODO: error handling
 const {DynamoDBClient} = require('@aws-sdk/client-dynamodb');
-const {SESClient, SendEmailCommand} = require('@aws-sdk/client-ses');
-const {PutCommand, GetCommand,QueryCommand} = require('@aws-sdk/lib-dynamodb');
-const {generateWeeklyReport} = require('./generateReport');
+const {PutCommand, GetCommand,QueryCommand,DeleteCommand, ScanCommand, UpdateCommand} = require('@aws-sdk/lib-dynamodb');
+const {generateReport} = require('./generateReport');
+const { ConflictError } = require('../middleware/error_handler');
 
 const isLambda = !!process.env.AWS_EXECUTION_ENV;
 
@@ -19,100 +19,144 @@ const dynamoClient = new DynamoDBClient({
           }),
 });
 
-const sesClient = new SESClient({
-    region: process.env.AWS_REGION || 'us-west-2',
-    ...(isLambda
-        ? {}
-        : {
-              credentials: {
-                  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-                  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-              },
-          }),
-});
+async function getSubscription(user_id){
+    const params = {
+        TableName: 'report_subscription',
+        Key: {
+            user_id,
+        },
+    };
+    const command = new GetCommand(params);
+    const {Item} = await dynamoClient.send(command);
+    return Item
+}
 
-// send weekly reports to all users
-// TODO: enable preference?
-async function sendWeeklyReports(){
-    try{
-        const users = await getAllUsers();
-        for (const user of users){
-            try{
-                const report = await generateWeeklyReport(user.user_id);
-                await sendEmailReport(user.email, report);
-                console.log(`Report sent successfully to ${user.email}`);
-            } catch (error){
-                console.error(`Failed to send report to ${user.email}:`, error);
-            }
-        }
-    } catch (error){
-        console.error('Error in sendWeeklyReports:', error);
-        throw error;
+async function postSubscription(user_id, report_type, report_frequency){
+    const Item = await getSubscription(user_id);
+    if (Item){
+        console.log(`User ${user_id} is already registered for reports`);
+        throw new ConflictError('User is already registered for reports');
     }
+    const params = {
+        TableName: 'report_subscription',
+        Item: {
+            user_id,
+            report_type,
+            report_frequency,
+            createTime: new Date().toISOString(),
+            lastReportTime: null
+        },
+    };
+    const command = new PutCommand(params);
+    await dynamoClient.send(command);
+    console.log(`Registered user ${user_id} for reports, report_type: ${report_type}, report_frequency: ${report_frequency}`);
 }
 
-async function getAllUsers(){
+async function deleteSubscription(user_id){
+    console.log(`Deleting subscription for user ${user_id}`);
     const params = {
-        TableName: 'user',
+        TableName: 'report_subscription',
+        Key: {
+            user_id,
+        },
     };
+    const command = new DeleteCommand(params);
+    await dynamoClient.send(command);
+    console.log(`Subscription deleted for user ${user_id}`);
+}
 
-    const command = new QueryCommand(params);
+async function updateLastReportTime(user_id, now){
+    const params = {
+        TableName: 'report_subscription',
+        Key: {
+            user_id,
+        },
+        UpdateExpression: 'SET lastReportTime = :now',
+        ExpressionAttributeValues: {
+            ':now': now.toISOString(),
+        },
+    };
+    const command = new UpdateCommand(params);
+    await dynamoClient.send(command);
+}
+
+function getNextReportTime(lastTime, reportFrequency) {
+    if (!lastTime) {
+        return new Date();
+    }
+    switch (reportFrequency) {
+        case 1: // Hourly
+            lastTime.setHours(lastTime.getHours() + 1);
+            break;
+        case 2: // Daily
+            lastTime.setDate(lastTime.getDate() + 1);
+            break;
+        case 3: // Weekly
+            lastTime.setDate(lastTime.getDate() + 7);
+            break;
+        case 4: // Monthly
+            lastTime.setMonth(lastTime.getMonth() + 1);
+            break;
+        default:
+            throw new ConflictError(`Unsupported frequency: ${reportFrequency}`);
+    }
+    return lastTime;
+}
+
+async function check(){
+    const params = {
+        TableName: 'report_subscription',
+    };
+    const command = new ScanCommand(params);
     const {Items} = await dynamoClient.send(command);
-    return Items || [];
+    const now= new Date();
+    for (const item of Items){
+        const {user_id, report_type, report_frequency} = item;
+        let {createTime, lastReportTime} = item;
+        createTime = new Date(createTime);
+        lastReportTime = new Date(lastReportTime);
+        nextReportTime = getNextReportTime(lastReportTime, report_frequency);
+        if (now >= nextReportTime){
+            await generateReport(report_type, user_id, lastReportTime, now);
+            await updateLastReportTime(user_id, now);
+        }
+    }
+    console.log('check finished');
 }
 
-async function sendEmailReport(email, report){
+async function getUserReports(user_id) {
     const params = {
-        Destination: {
-            ToAddresses: [email],
+        TableName: 'report', 
+        IndexName: 'user_id-index',
+        KeyConditionExpression: 'user_id = :user_id',
+        ExpressionAttributeValues: {
+            ':user_id': user_id, 
         },
-        Message: {
-            Body: {
-                Html: {
-                    Data: generateEmailHtml(report, report.reportId),
-                },
-            },
-            Subject: {
-                Data: 'Where Have You Been: Your Weekly Travel Summary',
-            },
-        },
-        Source: process.env.SES_FROM_EMAIL,
     };
-
-    const command = new SendEmailCommand(params);
-    return sesClient.send(command);
+    const command = new QueryCommand(params);
+    const { Items } = await dynamoClient.send(command);
+    return Items
 }
 
-function generateEmailHtml(report, reportId){
-    const reportUrl = `${process.env.APP_URL}/reports/${reportId}`;
-    return `
-        <html>
-            <body style="font-family: Arial, sans-serif;">
-                <h2>Your Weekly Travel Summary</h2>
-                <p>Here's what you've been up to this week!</p>
-                
-                <h3>Places Visited</h3>
-                <p>You visited ${report.totalPlaces} places this week!</p>
-                
-                <h3>Categories</h3>
-                <ul>
-                    ${report.categories.map(cat => 
-                        `<li>${cat.name}: ${cat.count} visits</li>`
-                    ).join('')}
-                </ul>
-                
-                <h3>Your Top Rated Places</h3>
-                <ul>
-                    ${report.favoratePlaces.map(place => 
-                        `<li>${place.name} - Rating: ${place.rating}/5</li>`
-                    ).join('')}
-                </ul>
-                <p>View your full report here: <a href="${reportUrl}">Click here</a></p>
-            </body>
-        </html>
-    `;
+async function getReport(report_id, user_id) {
+    const params = {
+        TableName: 'report',
+        Key: {
+            report_id,
+            user_id,
+        },
+    };
+    const command = new GetCommand(params);
+    const {Item} = await dynamoClient.send(command);
+    return Item
 }
+
 
 module.exports = {
-    sendWeeklyReports
+    postSubscription,
+    getSubscription,
+    deleteSubscription,
+    check,
+    getUserReports,
+    getReport
 };

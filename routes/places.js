@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPlaces,getPlaceByID } = require('../main/placeService');
 const {BadRequestError} = require('../middleware/error_handler');
-const {authenticateUser, authorizeUser } = require('../user/authentication');
+const {authorizeUser } = require('../user/authentication');
 
 router.get('/', authorizeUser(''),async (req, res, next) => {
     try {

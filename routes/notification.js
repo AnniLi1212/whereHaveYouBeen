@@ -1,12 +1,55 @@
 const express = require('express');
 const router = express.Router();
-const {sendWeeklyReports} = require('../notification/notificationService');
-const {getUserReports, getReport, generateWeeklyReport} = require('../notification/generateReport');
-const {authenticateUser} = require('../user/authentication');
+const {postSubscription, getSubscription, deleteSubscription, check, getUserReports, getReport} = require('../notification/notificationService');
+const {authorizeUser} = require('../user/authentication');
 const {NotFoundError} = require('../middleware/error_handler');
 
+router.post('/subscription', authorizeUser(''), async (req, res, next) => {
+    try{
+        user_id = req.user_id;
+        // report_type: 1 for normal
+        // report_frequency: 1 for hourly, 2 for daily, 3 for weekly, 4 for monthly
+        const {report_type = 1, report_frequency = 2} = req.body;
+        await postSubscription(user_id, report_type, report_frequency);
+        res.status(201).json({message: 'Report registered successfully'});
+    } catch (error){
+        next(error);
+    }
+});
+
+router.get('/subscription', authorizeUser(''), async (req, res, next) => {
+    try{
+        const Item = await getSubscription(req.user_id);
+        if (!Item){
+            throw new NotFoundError('User is not registered for reports');
+        }
+        delete Item.user_id;
+        res.json(Item);
+    } catch (error){
+        next(error);
+    }
+});
+
+router.delete('/subscription', authorizeUser(''), async (req, res, next) => {
+    try {
+        await deleteSubscription(req.user_id);
+        res.status(200).json({message: 'Report subscription deleted successfully'});
+    } catch (error){
+        next(error);
+    }
+});
+
+router.post('/check', authorizeUser(''), async (req, res, next) => {
+    try {
+        await check();
+        res.status(200).json({message: 'check finished'});
+    } catch (error){
+        next(error);
+    }
+});
+
 // get all reports for a user
-router.get('/', authenticateUser, async (req, res, next) => {
+router.get('/', authorizeUser(''), async (req, res, next) => {
     try{
         const reports = await getUserReports(req.user_id);
         res.json(reports);
@@ -16,7 +59,7 @@ router.get('/', authenticateUser, async (req, res, next) => {
 });
 
 // get a specific report
-router.get('/:reportId', authenticateUser, async (req, res, next) => {
+router.get('/:reportId', authorizeUser(''), async (req, res, next) => {
     try{
         const report = await getReport(req.params.reportId, req.user_id);
         if (!report){
@@ -28,14 +71,5 @@ router.get('/:reportId', authenticateUser, async (req, res, next) => {
     }
 });
 
-// for testing
-router.post('/send-reports', authenticateUser, async (req, res, next) => {
-    try{
-        await sendWeeklyReports();
-        res.json({message: 'Weekly reports sent successfully'});
-    } catch (error){
-        next(error);
-    }
-});
 
 module.exports=router;
