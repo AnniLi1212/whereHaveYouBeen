@@ -24,7 +24,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.text());
 
 app.use((req, res, next) => {
-    if (req.path.startsWith('/users') || req.path.startsWith('/notification/check')) {
+    const skipAuthPaths = [
+        '/users/signup',
+        '/users/login',
+        '/notification/check',
+    ];
+    if (skipAuthPaths.some((path) => req.path.startsWith(path))) {
         // Skip authentication for user routes
         return next();
     }

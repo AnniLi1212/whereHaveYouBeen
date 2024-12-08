@@ -2,9 +2,8 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb'); 
 const { PutCommand, GetCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb'); 
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4, validate } = require('uuid'); 
+const { v4: uuidv4 } = require('uuid'); 
 const { NotFoundError, ConflictError } = require('../middleware/error_handler');
-const { get } = require('../routes/places');
 
 const isLambda = !!process.env.AWS_EXECUTION_ENV;
 
@@ -20,7 +19,7 @@ const client = new DynamoDBClient({
           }),
 });
 
-async function signUp(user_name, password, email) {
+async function signUp(user_name, password, email, avatar_url) {
     const Items=await getUserByEmail(email);
     if (Items.length > 0) {
         throw new ConflictError('User already exists');
@@ -36,6 +35,7 @@ async function signUp(user_name, password, email) {
         user_name,
         password: hashedPassword,
         email,
+        avatar_url,
         createTime: now,
         modifyTime: now,
     };
@@ -69,7 +69,6 @@ async function getUserByEmail(email) {
 
 async function login(email, password) {
     const Items = await getUserByEmail(email);
-    console.log('login'+ Items);
     if (Items.length == 0) {
         throw new NotFoundError('User not found');
     }
@@ -84,6 +83,22 @@ async function login(email, password) {
     console.log(`User ${user_id} logged in successfully!`);
     const user_key=await generateUserKey(user_id);
     return user_key;
+}
+
+async function getUserByID(user_id) {
+    const params = {
+        TableName: 'user',
+        Key: {
+            user_id,
+        },
+    };
+    const command = new GetCommand(params);
+    const {Item} = await client.send(command);
+    delete Item.password;
+    delete Item.user_id;
+    delete Item.createTime;
+    delete Item.modifyTime;
+    return Item;
 }
 
 async function generateUserKey(user_id) {
@@ -136,4 +151,5 @@ module.exports = {
     signUp,
     login,
     validateKey,
+    getUserByID,
 };
