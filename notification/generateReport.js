@@ -47,68 +47,11 @@ async function generateReport(report_type, user_id, startTime, endTime){
     
     const report_data = "report_data_for_test";
     await storeReport(user_id, report_data, startTime, endTime);
-
-    // const endDate = new Date();
-    // const startDate = new Date(endDate);
-    // startDate.setDate(endDate.getDate() - 7);
-
-    // const visits = await getWeeklyVisits(userId, startDate.toISOString(), endDate.toISOString());
-    
-    // const report = {
-    //     totalPlaces: visits.length,
-    //     categories: await getCategorySummary(visits),
-    //     favoratePlaces: getFavoritePlaces(visits),
-    //     period: {
-    //         start: startDate,
-    //         end: endDate
-    //     }
-    // };
-    // const reportId = await storeReport(userId, report);
-    // return { ...report, reportId };
 }
 
-// get visits last week
-// TODO: match with historyService.js
-async function getWeeklyVisits(userId, startDate, endDate){
-    const params = {
-        TableName: 'history',
-        KeyConditionExpression: 'user_id = :userId AND visit_time BETWEEN :startDate AND :endDate',
-        ExpressionAttributeValues: {
-            ':userId': userId,
-            ':startDate': startDate,
-            ':endDate': endDate,
-        }
-    };
 
-    const command = new QueryCommand(params);
-    const {Items} = await client.send(command);
-    return Items || [];
-}
-// get category summaries
-// TODO: place.types stored in db?
-async function getCategorySummary(visits){
-    const categoryCount = {};
-    // TODO: multiple types? no types?
-    visits.forEach(visit => {
-        const types = visit.place.types || [];
-        types.forEach(type => {
-            categoryCount[type] = (categoryCount[type] || 0) + 1;
-        });
-    });
 
-    return Object.entries(categoryCount).map(([name, count]) => ({name, count})).sort((a, b) => b.count - a.count);
-}
-// get favorite places
-function getFavoritePlaces(visits){
-    return visits.sort((a, b) => b.rating - a.rating).slice(0, 5)
-    .map(visit => ({
-            name: visit.place.placeName, // validate
-            rating: visit.rating
-        }));
-}
-
-function generateEmailHtml(report, reportId){
-    const reportUrl = `${process.env.APP_URL}/reports/${reportId}`;
+function generateEmailHtml(report){
     return `
         <html>
             <body style="font-family: Arial, sans-serif;">

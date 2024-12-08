@@ -104,7 +104,7 @@ async function getUserByID(user_id) {
 async function generateUserKey(user_id) {
     const user_key = uuidv4();
     const now = new Date().toISOString();
-    const validateTime = new Date(new Date(now).getTime() + 1000 * 60 * 60 * 1).toISOString();
+    const validateTime = new Date(new Date(now).getTime() + 1000 * 60 * 60 * 24).toISOString();
     const params = {
         TableName: 'user_key',
         Item: {
