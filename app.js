@@ -6,6 +6,7 @@ const userRoutes = require('./routes/user');
 const historyRoutes = require('./routes/history');
 const wishlistRoutes = require('./routes/wishlist');
 const notificationRoutes = require('./routes/notification')
+const analyzeRoutes = require('./routes/analyze');
 const {errorHandler} = require('./middleware/error_handler');
 const {authenticateUser} = require('./user/authentication');
 
@@ -41,6 +42,7 @@ app.use('/users', userRoutes);
 app.use('/notification',notificationRoutes);
 app.use('/history', historyRoutes);
 app.use('/wishlist', wishlistRoutes);
+app.use('/analyze', analyzeRoutes);
 
 app.use((req, res) => {
     res.status(404).json({ error: 'Hi bro, this is a wrong address' });
