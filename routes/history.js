@@ -18,11 +18,11 @@ router.post('/', authorizeUser(''), async (req, res, next) => {
     try {
         user_id = req.user_id;
         const {placeID, placeName, description, placeRating, S3_url} = req.body;
-        if (!placeID || !placeName || !description || !placeRating) {
+        if (!placeID || !placeName || !description || placeRating === undefined || !S3_url) {
             throw new BadRequestError('missing required fields');
         }
         await addHistory(user_id, placeID, placeName, description, placeRating, S3_url);
-        res.status(201).json({ message: 'history added' });
+        res.status(201).json({ message: 'history added or udpated' });
     } catch (error) {
         next(error);
     }
@@ -37,7 +37,6 @@ router.delete('/:placeID', authorizeUser(''), async (req, res, next) => {
     } catch (error) {
         next(error);
     }
-
 });
 
 module.exports = router;

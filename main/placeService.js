@@ -3,6 +3,7 @@ const axios = require('axios');
 const {SSMClient, GetParameterCommand} = require('@aws-sdk/client-ssm');
 
 const GOOGLE_MAPS_SEARCH_API_URL = "https://places.googleapis.com/v1/places:searchText"
+const GOOGLE_MAPS_PLACE_PHOTO_URL="https://places.googleapis.com/v1"
 
 async function getGoogleMapKey(){
     const isLambda = !!process.env.AWS_EXECUTION_ENV;
@@ -37,9 +38,13 @@ async function getPlaces(textQuery, pageSize=10, pageToken=null) {
             headers:{
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
-                'X-Goog-FieldMask': 'places.id,places.displayName,places.types,places.primaryType,places.formattedAddress,places.addressComponents,places.location,places.rating,places.editorialSummary,places.generativeSummary,places.googleMapsLinks,nextPageToken'
+                'X-Goog-FieldMask': 'places.id,places.displayName,places.types,places.primaryType,places.formattedAddress,places.addressComponents,places.location,places.rating,places.editorialSummary,places.generativeSummary,places.googleMapsLinks,places.photos,nextPageToken'
             }
         });
+        for (let place of response.data.places) {
+            place.photoURL=await getPlacePhoto(place.photos[0].name);
+            delete place.photos
+        }
         return response.data;
     }catch(error) {
         throw new GoogleMapApiRequestError(error.message);
@@ -56,10 +61,32 @@ async function getPlaceByID(placeID) {
             headers:{
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
-                'X-Goog-FieldMask': 'id,displayName,types,primaryType,formattedAddress,addressComponents,location,rating,editorialSummary,generativeSummary,googleMapsLinks'
+                'X-Goog-FieldMask': 'id,displayName,types,primaryType,formattedAddress,addressComponents,location,rating,editorialSummary,generativeSummary,googleMapsLinks,photos'
             }
         });
+        response.data.photoURL=await getPlacePhoto(response.data.photos[0].name);
+        delete response.data.photos;
         return response.data;
+    }catch(error) {
+        throw new GoogleMapApiRequestError(error.message);
+    }
+};
+
+async function getPlacePhoto(NAME, maxHeightPx=4800, maxWidthPx=4800) {
+    try {
+        const GOOGLE_MAPS_API_KEY=await getGoogleMapKey();
+        const url = `${GOOGLE_MAPS_PLACE_PHOTO_URL}/${NAME}/media`;
+        const response = await axios.get(
+            url,
+            { 
+            params:{
+                key: GOOGLE_MAPS_API_KEY,
+                skipHttpRedirect: true,
+                maxHeightPx,
+                maxWidthPx
+            }
+        });
+        return response.data.photoUri;
     }catch(error) {
         throw new GoogleMapApiRequestError(error.message);
     }

@@ -11,7 +11,7 @@ router.post('/subscription', authorizeUser(''), async (req, res, next) => {
         // report_frequency: 1 for hourly, 2 for daily, 3 for weekly, 4 for monthly
         const {report_type = 1, report_frequency = 2} = req.body;
         await postSubscription(user_id, report_type, report_frequency);
-        res.status(201).json({message: 'Report registered successfully'});
+        res.status(201).json({message: 'Report registered or updated successfully'});
     } catch (error){
         next(error);
     }
@@ -21,7 +21,7 @@ router.get('/subscription', authorizeUser(''), async (req, res, next) => {
     try{
         const Item = await getSubscription(req.user_id);
         if (!Item){
-            throw new NotFoundError('User is not registered for reports');
+            res.json(null)
         }
         delete Item.user_id;
         res.json(Item);

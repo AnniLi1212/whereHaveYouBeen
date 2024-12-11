@@ -1,10 +1,11 @@
 // get visits
 
 const { getHistory } = require("../main/historyService");
+const { getWishlist}= require("../main/wishListService");
 const { getPlaceByID } = require("../main/placeService");
 
 // TODO: match with historyService.js
-async function getVisits(user_id, startDate, endDate){
+async function getHistories(user_id, startDate, endDate){
     let Items = await getHistory(user_id);
     Items = Items.filter(item => {
         const modifyTime = new Date(item.modifyTime); 
@@ -18,10 +19,30 @@ async function getVisits(user_id, startDate, endDate){
     return Items;
 }
 
-// get favorite places
+async function getWishlists(user_id, startDate, endDate){
+    let Items = await getWishlist(user_id);
+    Items = Items.filter(item => {
+        const modifyTime = new Date(item.modifyTime); 
+        const isAfterStartDate = startDate ? modifyTime >= new Date(startDate) : true;
+        const isBeforeEndDate = endDate ? modifyTime <= new Date(endDate) : true;
+        return isAfterStartDate && isBeforeEndDate;
+    });
+    for (let item of Items) {
+        item.place = await getPlaceByID(item.placeID);
+    }
+    return Items;
+}
+
+// get favorite by level
 function getFavoritePlace(items, level = "country") {
     const filteredItems = items.filter(item => item.placeRating >= 4);
     return getTopFrequent(filteredItems, level).topFrequent;
+}
+
+// get favorite by type
+function getFavoriteType(items) {
+    const filteredItems = items.filter(item => item.placeRating >= 4);
+    return getTopTypes(filteredItems);
 }
 
 function getTopFrequent(items, level = "country") {
@@ -70,22 +91,29 @@ function getTopTypes(items) {
     return topTypes;
 }
 
-async function analyze_dashboard(user_id){
-    const visits = await getVisits(user_id, null, null);
-    const countryResult = getTopFrequent(visits, "country");
-    const stateResult = getTopFrequent(visits, "administrative_area_level_1");
+async function analyze(user_id, startDate=null, endDate=null){
+    const histories = await getHistories(user_id, startDate, endDate);
+    const wishlists = await getWishlists(user_id, startDate, endDate);
+    const history_countryResult = getTopFrequent(histories, "country");
+    const history_stateResult = getTopFrequent(histories, "administrative_area_level_1");
+    const wishlist_countryResult = getTopFrequent(wishlists, "country");
+    const wishlist_stateResult = getTopFrequent(wishlists, "administrative_area_level_1");
     let res={
-        totalPlaces: visits.length,
-        topCountries: countryResult.topFrequent,
-        totalCountries: countryResult.totalItems,
-        topStates: stateResult.topFrequent,
-        totalStates: stateResult.totalItems,
-        topTypes: getTopTypes(visits),
-        getFavoritePlace: getFavoritePlace(visits)
+        history_count: histories.length,
+        wishlist_count: wishlists.length,
+        wishlist_topCountries: wishlist_countryResult.topFrequent,
+        wishlist_totalCountries: wishlist_countryResult.totalItems,
+        history_topCountries: history_countryResult.topFrequent,
+        history_totalCountries: history_countryResult.totalItems,
+        history_topStates: history_stateResult.topFrequent,
+        history_totalStates: history_stateResult.totalItems,
+        history_topTypes: getTopTypes(histories),
+        history_favorite_country: getFavoritePlace(histories, level = "country"),
+        history_favorite_type: getFavoriteType(histories),
     }
     return res
 }
 
 module.exports = {
-    analyze_dashboard,
+    analyze,
 };

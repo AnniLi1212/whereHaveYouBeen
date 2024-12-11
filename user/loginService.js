@@ -3,7 +3,7 @@ const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { PutCommand, GetCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb'); 
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid'); 
-const { NotFoundError, ConflictError } = require('../middleware/error_handler');
+const { NotFoundError, ConflictError, UserKeyError } = require('../middleware/error_handler');
 
 const isLambda = !!process.env.AWS_EXECUTION_ENV;
 
@@ -135,12 +135,12 @@ async function validateKey(user_key) {
     const response = await client.send(command);
 
     if (!response.Items || response.Items.length === 0) {
-        throw new NotFoundError('Key not found');
+        throw new UserKeyError('Key not found');
     }
 
     const { user_id, validateTime } = response.Items[0];
     if (new Date(validateTime) < new Date()) {
-        throw new NotFoundError('Key expired');
+        throw new UserKeyError('Key expired');
     }
     return user_id;
 }

@@ -22,7 +22,7 @@ router.post('/', authorizeUser(''), async (req, res, next) => {
             throw new BadRequestError('missing required fields');
         }
         await addWishlist(user_id, placeID, placeName);
-        res.status(201).json({ message: 'wishlist item added' });
+        res.status(201).json({ message: 'wishlist item added or updated' });
     } catch (error) {
         next(error);
     }

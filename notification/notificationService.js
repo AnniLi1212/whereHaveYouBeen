@@ -32,10 +32,12 @@ async function getSubscription(user_id){
 }
 
 async function postSubscription(user_id, report_type, report_frequency){
-    const Item = await getSubscription(user_id);
-    if (Item){
-        console.log(`User ${user_id} is already registered for reports`);
-        throw new ConflictError('User is already registered for reports');
+    let createTime = new Date().toISOString();
+    let lastReportTime = null;
+    const existingItem = await getSubscription(user_id);
+    if (existingItem){
+        createTime = existingItem.createTime;
+        lastReportTime = existingItem.lastReportTime;
     }
     const params = {
         TableName: 'report_subscription',
@@ -43,13 +45,16 @@ async function postSubscription(user_id, report_type, report_frequency){
             user_id,
             report_type,
             report_frequency,
-            createTime: new Date().toISOString(),
-            lastReportTime: null
+            createTime: createTime,
+            lastReportTime: lastReportTime,
         },
     };
     const command = new PutCommand(params);
     await dynamoClient.send(command);
-    console.log(`Registered user ${user_id} for reports, report_type: ${report_type}, report_frequency: ${report_frequency}`);
+    const now = new Date();
+    await generateReport(report_type, report_frequency, user_id, new Date(lastReportTime), now);
+    await updateLastReportTime(user_id, now);
+    console.log(`Registered or updated user ${user_id} for reports, report_type: ${report_type}, report_frequency: ${report_frequency}`);
 }
 
 async function deleteSubscription(user_id){
@@ -117,7 +122,7 @@ async function check(){
         lastReportTime = new Date(lastReportTime);
         nextReportTime = getNextReportTime(lastReportTime, report_frequency);
         if (now >= nextReportTime){
-            await generateReport(report_type, user_id, lastReportTime, now);
+            await generateReport(report_type, report_frequency, user_id, lastReportTime, now);
             await updateLastReportTime(user_id, now);
         }
     }

@@ -1,11 +1,11 @@
-const { NotFoundError } = require('../middleware/error_handler');
+const { UserKeyError } = require('../middleware/error_handler');
 const {validateKey} = require('./loginService');
 
 async function authenticateUser(req, res, next) {
     try {
         const user_key = req.header('X-User-Key');
         if (!user_key) {
-            throw new NotFoundError('please provide a user key');
+            throw new UserKeyError('please provide a user key');
         }
         const user_id = await validateKey(user_key);
         req.user_id = user_id;
