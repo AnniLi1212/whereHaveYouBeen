@@ -80,7 +80,7 @@ async function generateReport(report_type, report_frequency, user_id, startTime,
                 <h3>Types of your visited</h3>
                 <ul>
                     ${report.history_topTypes.map(cat => 
-                        `<li>${cat.name}: ${cat.count} visits</li>`
+                        `<li>${cat.type}: ${cat.count} visits</li>`
                     ).join('')}
                 </ul>
                 
